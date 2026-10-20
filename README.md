@@ -307,6 +307,6 @@ Released under the [MIT License](LICENSE). See `LICENSE` for details.
 **Qubits Infernova** · Team ID `VTU-QFF-HC-0094` · Tier `Both`
 · Built with ⚛️ Qiskit for the VTU-QFF Hackathon
 
-[⬆ Back to Top](#Qubits Infernova)
+[⬆ Back to Top](#qubits-infernova)
 
 </div>
