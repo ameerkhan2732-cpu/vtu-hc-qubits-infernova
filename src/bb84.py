@@ -39,6 +39,26 @@ def sift(alice_bits, alice_bases, bob_bits, bob_bases):
     keep = alice_bases == bob_bases
     return alice_bits[keep], bob_bits[keep]
 
+def estimate_qber(alice_key, bob_key, sample_frac, rng):
+    """Publicly compare a random sample of the sifted key.
+
+    Returns (qber, alice_rest, bob_rest). The sampled bits are removed,
+    because they were revealed.
+    """
+    alice_key = np.asarray(alice_key)
+    bob_key = np.asarray(bob_key)
+    n = len(alice_key)
+    if n != len(bob_key):
+        raise ValueError("alice_key and bob_key must have the same length")
+    if n == 0:
+        raise ValueError("empty key: nothing to sample")
+    k = min(n, max(1, int(round(sample_frac * n))))
+    idx = rng.choice(n, size=k, replace=False)
+    keep = np.ones(n, dtype=bool)
+    keep[idx] = False
+    qber = float(np.mean(alice_key[idx] != bob_key[idx]))
+    return qber, alice_key[keep], bob_key[keep]
+
 if __name__ == "__main__":
     from qiskit_aer import AerSimulator
     rng = np.random.default_rng(1)
