@@ -58,6 +58,25 @@ def estimate_qber(alice_key, bob_key, sample_frac, rng):
     keep[idx] = False
     qber = float(np.mean(alice_key[idx] != bob_key[idx]))
     return qber, alice_key[keep], bob_key[keep]
+def run_bb84(n, sample_frac=0.15, seed=None, backend=None):
+    """Full BB84 round with no Eve. Returns a dict of results."""
+    if backend is None:
+        from qiskit_aer import AerSimulator
+        backend = AerSimulator()
+    rng = np.random.default_rng(seed)
+    bits = random_bits(n, rng)
+    a_bases = random_bits(n, rng)
+    b_bases = random_bits(n, rng)
+    qc = build_circuit(bits, a_bases, b_bases)
+    bob = run_circuit(qc, backend)
+    a_key, b_key = sift(bits, a_bases, bob, b_bases)
+    qber, a_final, b_final = estimate_qber(a_key, b_key, sample_frac, rng)
+    return {
+        "sifted_len": len(a_key),
+        "qber": qber,
+        "alice_key": a_final,
+        "bob_key": b_final,
+    }
 
 if __name__ == "__main__":
     from qiskit_aer import AerSimulator
