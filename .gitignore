@@ -55,3 +55,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# QuantaGuard additions
+qenv/
+*.pyc
+*.token
+!.env.example
