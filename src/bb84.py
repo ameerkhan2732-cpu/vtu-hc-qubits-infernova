@@ -58,6 +58,9 @@ def estimate_qber(alice_key, bob_key, sample_frac, rng):
     keep[idx] = False
     qber = float(np.mean(alice_key[idx] != bob_key[idx]))
     return qber, alice_key[keep], bob_key[keep]
+def decide(qber, threshold=0.11):
+    """BB84 verdict. About 11% is the usual abort threshold."""
+    return "EAVESDROPPER" if qber > threshold else "SAFE"
 def run_bb84(n, sample_frac=0.15, seed=None, backend=None, eve=None, flip_prob=0.0):
     """Full BB84 round with no Eve. Returns a dict of results."""
     if backend is None:
@@ -82,6 +85,8 @@ def run_bb84(n, sample_frac=0.15, seed=None, backend=None, eve=None, flip_prob=0
         "qber": qber,
         "alice_key": a_final,
         "bob_key": b_final,
+        "qber": qber,
+        "verdict": decide(qber),
     }
 
 if __name__ == "__main__":

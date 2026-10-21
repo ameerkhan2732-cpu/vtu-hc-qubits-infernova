@@ -54,3 +54,22 @@ def test_noise_is_below_eve():
     noisy = run_bb84(4000, seed=1, flip_prob=0.05)
     attacked = run_bb84(4000, seed=1, eve=intercept_resend)
     assert noisy["qber"] < attacked["qber"]
+    
+from src.bb84 import decide
+
+
+def test_decide_threshold_boundary():
+    assert decide(0.11) == "SAFE"
+    assert decide(0.12) == "EAVESDROPPER"
+
+
+def test_verdict_safe_without_eve():
+    assert run_bb84(2000, seed=1)["verdict"] == "SAFE"
+
+
+def test_verdict_tolerates_small_noise():
+    assert run_bb84(2000, seed=1, flip_prob=0.03)["verdict"] == "SAFE"
+
+
+def test_verdict_flags_eve():
+    assert run_bb84(2000, seed=1, eve=intercept_resend)["verdict"] == "EAVESDROPPER"
