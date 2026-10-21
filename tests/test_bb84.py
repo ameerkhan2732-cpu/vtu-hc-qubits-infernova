@@ -44,3 +44,13 @@ def test_same_seed_reproduces_result():
 def test_eve_raises_qber_to_about_25_percent():
     r = run_bb84(4000, seed=1, eve=intercept_resend)
     assert 0.18 < r["qber"] < 0.32
+
+def test_noise_gives_matching_qber():
+    r = run_bb84(4000, seed=1, flip_prob=0.05)
+    assert 0.02 < r["qber"] < 0.09
+
+
+def test_noise_is_below_eve():
+    noisy = run_bb84(4000, seed=1, flip_prob=0.05)
+    attacked = run_bb84(4000, seed=1, eve=intercept_resend)
+    assert noisy["qber"] < attacked["qber"]
