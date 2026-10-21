@@ -1,5 +1,5 @@
 # Core quantum SDK
-qiskit>=1.0,<2.0
+qiskit>=2.0,<3.0
 qiskit-ibm-runtime>=0.30
 
 # Local simulator
@@ -23,3 +23,4 @@ cryptography>=42.0
 
 # Testing
 pytest>=8.0
+python-dotenv>=1.0
