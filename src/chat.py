@@ -1,0 +1,76 @@
+﻿"""BB84 chat demo: exchange a key, check the channel, then send an encrypted message.
+
+Run from the repo root:
+    python -m src.chat --message "HELLO BOB"
+    python -m src.chat --message "HELLO BOB" --eve
+    python -m src.chat --message "HELLO BOB" --noise 0.05
+"""
+import argparse
+import sys
+
+import numpy as np
+
+from src.bb84 import run_bb84
+from src.eve import intercept_resend
+from src.trust_meter import Trust, classify
+
+SAMPLE_FRAC = 0.15
+
+
+def to_bits(data: bytes) -> np.ndarray:
+    return np.unpackbits(np.frombuffer(data, dtype=np.uint8))
+
+
+def to_bytes(bits: np.ndarray) -> bytes:
+    return np.packbits(bits.astype(np.uint8)).tobytes()
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--message", default="HELLO BOB")
+    p.add_argument("--n", type=int, default=512, help="number of qubits Alice sends")
+    p.add_argument("--noise", type=float, default=0.0, help="channel bit-flip probability")
+    p.add_argument("--eve", action="store_true", help="Eve intercepts every qubit")
+    p.add_argument("--seed", type=int, default=None)
+    args = p.parse_args(argv)
+
+    result = run_bb84(args.n, sample_frac=SAMPLE_FRAC, seed=args.seed,
+                      eve=intercept_resend if args.eve else None,
+                      flip_prob=args.noise)
+
+    sifted = result["sifted_len"]
+    n_samples = max(1, round(SAMPLE_FRAC * sifted))
+    qber = result["qber"]
+    # In this simulation each bit is flipped with probability `noise`, so QBER = noise.
+    trust = classify(qber, args.noise, n_samples=n_samples,
+                     expected_qber_fn=lambda level: level)
+
+    print(f"qubits sent: {args.n}   sifted: {sifted}   sampled: {n_samples}")
+    print(f"observed QBER: {qber:.3f}   trust: {trust.value.upper()}")
+
+    if trust is Trust.COMPROMISED:
+        print("Channel looks compromised. Key discarded, no message sent.")
+        return 1
+
+    a_key, b_key = result["alice_key"], result["bob_key"]
+    msg = args.message.encode("utf-8")
+    bits = to_bits(msg)
+    if len(bits) > len(a_key):
+        print(f"Message needs {len(bits)} key bits but only {len(a_key)} are available. "
+              f"Use a larger --n or a shorter message.")
+        return 2
+
+    cipher = bits ^ a_key[: len(bits)]
+    print("Alice sends (hex):", to_bytes(cipher).hex())
+
+    plain = to_bytes(cipher ^ b_key[: len(bits)])
+    mismatches = int((a_key != b_key).sum())
+    if mismatches:
+        print(f"Warning: Alice's and Bob's keys differ in {mismatches} bits (channel noise). "
+              f"Error correction is needed before this key can be used.")
+    print("Bob decrypts:", plain.decode("utf-8", errors="replace"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
