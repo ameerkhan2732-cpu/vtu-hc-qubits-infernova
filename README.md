@@ -46,9 +46,9 @@
 
 | # | Name | GitHub Username | Role |
 | :-- | :--- | :--- | :--- |
-| 1 | _Add your name_ | _your-github-username_ | _Team Lead_ |
-| 2 | _Add your name_ | _your-github-username_ | _Developer_ |
-| 3 | _Add your name_ | _your-github-username_ | _Developer_ |
+| 1 | Harshavardhaan S | sharshavardhaan05-rgb | _Team Lead_ |
+| 2 | Garima Mishra V | garimamishrav2007-cmd | _Developer_ |
+| 3 | Ameerkhan S | ameerkhan2732-cpu | _Developer_ |
 
 <!--
 Optional: add a plain list instead of the table above.
@@ -61,14 +61,27 @@ Optional: add a plain list instead of the table above.
 ## ❓ Problem Statement
 
 <!--
-State the problem you are solving. Be specific: what is broken or missing,
-who experiences it, and why does it matter. Link to the official problem
-statement from the brief if one applies.
+
 -->
 
-**Problem:** _Describe the problem in 2–3 sentences._
+**Problem:** A secure chat prototype that uses quantum keys and tells noise apart from eavesdropping on real-world links.
 
-**Why it matters:** _Explain the impact or opportunity._
+**Why it matters:** _IMPACT AND OPPORTUNITY
+
+Impact
+Adversaries are recording encrypted defence, government and journalist communications today to decrypt them once quantum computers mature. Sensitive messages often need to stay secret for decades, and a message cracked later cannot be protected again. QuantaGuard Chat gives these users keys generated with quantum key distribution (BB84), whose security rests on quantum physics rather than on encryption math that future computers may break.
+
+The gap we address
+Real field links (fibre, satellite, tactical radio) are noisy, so a rising error rate could mean a weak link or an eavesdropper. Our Channel Trust Meter reads the quantum bit error rate and classifies the channel as safe, noisy but usable, or compromised. Noise shortens the key, and a detected attack discards the key and blocks messaging, so the link is neither blindly trusted nor wrongly abandoned.
+
+Opportunity
+1. Training and awareness: defence teams and students can see how noise and attacks change the error rate, key length and chat availability without lab equipment.
+2. Link assessment: teams can judge whether a channel is fit for QKD before investing in hardware.
+3. Foundation for growth: the same decision logic can sit on top of real QKD key feeds in future.
+4. Accessibility: built on Qiskit and open tools, so universities and small labs can use and extend it.
+
+Scope
+QuantaGuard Chat is a prototype validated on Qiskit Aer, IBM noise models and an IBM hardware run. It demonstrates the approach and does not replace commercial QKD hardware._
 
 **Track / Category:** _Online / Offline · Track 1 / Track 2 · <domain>_
 
@@ -81,11 +94,26 @@ Describe your solution. Keep it concrete: the core idea, the user flow, and
 the quantum/ML technique you are applying.
 -->
 
-**Solution:** _In 2–3 sentences, describe what you built._
+**Solution:** QuantaGuard Chat is a Qiskit-based secure chat that generates encryption keys with the BB84 quantum protocol, simulates real-world noise using Aer and IBM backends, and uses a Channel Trust Meter to classify the link as safe, noisy but usable, or compromised.
+Noise automatically shortens the key, and a detected eavesdropper discards the key and blocks the chat, so messages stay protected even on imperfect field links.
 
-**Key idea:** _The one-line technical summary of your approach._
+**Key idea:** A quantum-key secure chat that tells channel noise apart from eavesdropping, and automatically shortens the key or blocks messaging to keep communication safe on noisy real-world links.
 
-**Why this works:** _How your approach addresses the problem statement._
+**Why this works:** HOW OUR APPROACH ADDRESSES THE PROBLEM STATEMENT
+
+Problem: Encrypted defence, government and journalist traffic is being recorded today to be decrypted once quantum computers mature, and real QKD links are too noisy for operators to tell a weak channel from an eavesdropper.
+
+1. Long-term secrecy: Keys are generated with the BB84 quantum protocol in Qiskit, so their security rests on quantum physics rather than on encryption math that future computers may break.
+
+2. Eavesdropper detection: Alice and Bob sift their results on matching bases and sample part of the key to measure the quantum bit error rate (QBER). An intercept-resend attack raises QBER to about 25%, well above the ~11% BB84 safety limit.
+
+3. Noise handling: Aer noise models and IBM fake-backend profiles simulate real channel imperfections, and a batch is validated on real IBM hardware. This shows how ordinary noise differs from an attack in the measured results.
+
+4. Automatic decision: The Channel Trust Meter classifies the link as safe, noisy but usable, or compromised, so operators get a clear verdict rather than a raw error number.
+
+5. Adaptive protection: In the usable range, error correction and privacy amplification shorten the key to a secure length. Above the threshold, the key is discarded and messaging is blocked.
+
+6. End-to-end result: The final key encrypts messages in a working Streamlit chat, so the full path from quantum key exchange to protected communication can be demonstrated live.
 
 ---
 
