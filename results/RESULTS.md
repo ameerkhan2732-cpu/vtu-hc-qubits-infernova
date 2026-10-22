@@ -32,3 +32,4 @@ Measurement sampling on the fake backend is not seeded, so reruns differ slightl
 - Small keys: sampled QBER uses about 30 bits, so full QBER is the cross-check.
 - Only intercept-resend was tested, not other attacks.
 
+- Sampling risk: with the fake backend, 1 of 4 honest runs at 400 qubits (sample about 59 bits) was flagged by chance (sampled QBER 11.9%, full QBER 5.1%). At 800 qubits (sample about 120 bits), 10 of 10 honest runs were accepted (full QBER 0.8% to 2.7%).
