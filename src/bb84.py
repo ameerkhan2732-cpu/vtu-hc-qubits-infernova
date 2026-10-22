@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 from qiskit import QuantumCircuit
 
 
@@ -26,13 +26,38 @@ def build_circuit(bits, alice_bases, bob_bases):
     return qc
 
 
-def run_circuit(qc, backend):
-    """Run once (1 shot) and return Bob's bits as a numpy array."""
-    result = backend.run(qc, shots=1).result()
-    bitstring = list(result.get_counts().keys())[0]
-    # Qiskit prints the highest qubit first, so reverse it
-    return np.array([int(b) for b in reversed(bitstring.replace(" ", ""))])
+CHUNK = 128
 
+def run_circuit(qc, backend, chunk=CHUNK):
+    """Run 1 shot and return Bob's bits as a numpy array.
+
+    Qubits are independent in BB84, so big circuits are split into chunks
+    and run as one batch. Same statistics, far less simulator work.
+    """
+    n = qc.num_qubits
+    if n <= chunk:
+        result = backend.run(qc, shots=1).result()
+        bitstring = list(result.get_counts().keys())[0]
+        return np.array([int(b) for b in reversed(bitstring.replace(" ", ""))])
+
+    subs = [QuantumCircuit(min(chunk, n - s), min(chunk, n - s))
+            for s in range(0, n, chunk)]
+    for inst in qc.data:
+        op = inst.operation
+        if op.name == "barrier":
+            continue
+        qs = [qc.find_bit(q).index for q in inst.qubits]
+        cs = [qc.find_bit(c).index for c in inst.clbits]
+        c = qs[0] // chunk
+        assert all(q // chunk == c for q in qs), "gate spans chunks"
+        subs[c].append(op, [q - c * chunk for q in qs], [x - c * chunk for x in cs])
+
+    result = backend.run(subs, shots=1).result()
+    out = []
+    for i in range(len(subs)):
+        bs = list(result.get_counts(i).keys())[0].replace(" ", "")
+        out.extend(int(b) for b in reversed(bs))
+    return np.array(out)
 
 def sift(alice_bits, alice_bases, bob_bits, bob_bases):
     """Keep only the positions where both bases match."""
@@ -100,3 +125,4 @@ if __name__ == "__main__":
     bob = run_circuit(qc, AerSimulator())
     a_key, b_key = sift(bits, a_bases, bob, b_bases)
     print(len(a_key), "sifted bits; mismatches:", int((a_key != b_key).sum()))
+
