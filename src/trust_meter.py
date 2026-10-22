@@ -68,7 +68,7 @@ def _stub_expected_qber(level: float) -> float:
 def _load_expected_qber() -> Callable[[float], float]:
     try:
         from src.noise import expected_qber
-    except ModuleNotFoundError as exc:
+    except ImportError as exc:
         if exc.name not in ("src.noise", "src"):
             raise  # noise exists but one of *its* imports is missing: do not hide that
         warnings.warn(
