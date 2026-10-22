@@ -1,67 +1,66 @@
-﻿import importlib
+﻿"""Pipeline: BB84 exchange, trust check, error correction, privacy amplification, key."""
+import math
+
 import numpy as np
-from src import _stubs
 
-_HOME = {
-    "run_bb84": "bb84", "build_noise_model": "noise", "expected_qber": "noise",
-    "reconcile": "postprocess", "privacy_amplify": "postprocess",
-    "classify": "trust_meter", "derive_key": "chat",
-    "encrypt": "chat", "decrypt": "chat",
-}
-N_QUBITS, N_BATCHES = 512, 4  # tune once the real bb84 is merged
+from src import crypto_utils
+from src.bb84 import run_bb84
+from src.eve import intercept_resend
+from src.postprocess import ReconciliationError, privacy_amplify, reconcile
+from src.trust_meter import classify
+
+N_QUBITS, N_BATCHES = 512, 4
+SAMPLE_FRAC = 0.15
+# Interim noise scale until noise.py is filled in: noise_level 0..1 maps to a
+# channel bit-flip probability of 0..MAX_FLIP. Above ~7% the post-processing
+# leaves no secret key, so 6% is the top of the usable range.
+MAX_FLIP = 0.06
 
 
-def _get(name):
-    """Real implementation if merged, else stub."""
-    try:
-        mod = importlib.import_module(f"src.{_HOME[name]}")
-        return getattr(mod, name), False
-    except (ImportError, AttributeError):
-        return getattr(_stubs, name), True
+def _flip_prob(level):
+    return MAX_FLIP * min(1.0, max(0.0, float(level)))
 
 
 def using_stubs():
-    """Names currently served by stubs (the UI can show a banner)."""
-    return [n for n in _HOME if _get(n)[1]]
+    """Names still served by stubs (none: every module is real now)."""
+    return []
 
 
-def _backend():
-    try:
-        from qiskit_aer import AerSimulator
-        return AerSimulator()
-    except ImportError:
-        return None
+def get_expected_qber(level):
+    return _flip_prob(level)
 
 
 def run_exchange(noise_level, eve_on, rng=None):
     rng = rng or np.random.default_rng()
-    run_bb84, stub = _get("run_bb84")
-    kwargs = {"_level": noise_level} if stub else {}
-    res = run_bb84(N_QUBITS, N_BATCHES, _backend(),
-                   noise_model=_get("build_noise_model")[0](noise_level),
-                   eve=eve_on, rng=rng, **kwargs)
+    seed = int(rng.integers(0, 2**31 - 1))
+    res = run_bb84(N_QUBITS * N_BATCHES, sample_frac=SAMPLE_FRAC, seed=seed,
+                   eve=intercept_resend if eve_on else None,
+                   flip_prob=_flip_prob(noise_level))
     qber = res["qber"]
-
-    a_fix, _b_fix, leaked = _get("reconcile")[0](res["alice_key"], res["bob_key"])
-    verdict = _get("classify")[0](qber, noise_level)["verdict"]
+    n_samples = max(1, round(SAMPLE_FRAC * res["sifted_len"]))
+    verdict = classify(qber, noise_level, n_samples=n_samples,
+                       expected_qber_fn=_flip_prob).value
 
     key, final_len = None, 0
     if verdict != "compromised":
-        final = _get("privacy_amplify")[0](a_fix, qber, leaked)
-        final_len = len(final)
-        if final_len > 0:
-            key = _get("derive_key")[0](final)
+        try:
+            a_fix, b_fix, leaked = reconcile(res["alice_key"], res["bob_key"],
+                                             qber if qber > 0 else None, seed=seed)
+        except ReconciliationError:
+            a_fix, b_fix, leaked = None, None, 0
+        if a_fix is not None and np.array_equal(a_fix, b_fix):
+            qber_key = min(0.5, qber + 2 * math.sqrt(max(qber * (1 - qber), 0.0) / n_samples))
+            final = privacy_amplify(a_fix, qber_key, leaked)
+            final_len = len(final)
+            if final_len > 0:
+                key = crypto_utils.derive_key(final)
     return {"qber": qber, "verdict": verdict,
             "final_key_len": final_len, "key": key}
 
 
-def get_expected_qber(level):
-    return _get("expected_qber")[0](level)
-
-
 def encrypt_msg(key, text):
-    return _get("encrypt")[0](key, text)
+    return crypto_utils.encrypt(key, text)
 
 
 def decrypt_msg(key, blob):
-    return _get("decrypt")[0](key, blob)
+    return crypto_utils.decrypt(key, blob)
