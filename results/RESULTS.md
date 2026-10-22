@@ -10,9 +10,11 @@ software; Alice's preparation and Bob's measurement run on the backend.
 |---|---|---|---|---|---|
 | Honest | 1 | 115 | 2.6% | SAFE | dbcp9sgc77vs7386ocm0 |
 | Eve | 1 | 115 | 32.2% | EAVESDROPPER | dbcprck24mrc73ck5h70 |
+| Honest | 2 | 93 | 2.2% | SAFE | dbcpv6fi0auc739442eg |
+| Eve | 2 | 93 | 24.7% | EAVESDROPPER | dbcpvoc24mrc73ck5t40 |
 
-Command: `python run_real.py --backend ibm_marrakesh --n 200 [--eve]`
-One run per scenario, so no averages are claimed.
+Command: `python run_real.py --backend ibm_marrakesh --n 200 [--eve] [--seed N]`
+Two runs per scenario (seeds 1 and 2): honest mean 2.4%, Eve mean 28.5%. Too few runs for a confidence interval.
 
 ## Noise-model simulation (FakeSherbrooke, 20 runs, seeds 1 to 20)
 
@@ -29,3 +31,4 @@ Measurement sampling on the fake backend is not seeded, so reruns differ slightl
 - Eve is simulated classically; only Bob's measurement is on the device.
 - Small keys: sampled QBER uses about 30 bits, so full QBER is the cross-check.
 - Only intercept-resend was tested, not other attacks.
+
