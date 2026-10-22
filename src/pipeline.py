@@ -1,4 +1,4 @@
-﻿import importlib
+import importlib
 import inspect
 import os
 from functools import lru_cache
@@ -8,7 +8,10 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from src import _stubs
+try:
+    from src import _stubs
+except ImportError:
+    _stubs = None
 
 _HOME = {
     "run_bb84": "bb84", "build_noise_model": "noise", "expected_qber": "noise",
@@ -67,6 +70,8 @@ def _get(name):
         pass
     if name in _FALLBACK:
         return _FALLBACK[name], True
+    if _stubs is None:
+        raise ImportError(name + ' is not available and has no stub')
     return getattr(_stubs, name), True
 
 
