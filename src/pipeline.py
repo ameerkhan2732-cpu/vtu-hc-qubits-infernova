@@ -1,169 +1,93 @@
-﻿import importlib
+"""Pipeline: BB84 exchange, trust check, error correction, privacy amplification, key."""
 import inspect
-import os
-from functools import lru_cache
 
 import numpy as np
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from src import _stubs
+from src.bb84 import run_bb84
+from src.chat import derive_key
+from src.postprocess import ReconciliationError, privacy_amplify, reconcile
+from src.trust_meter import classify
 
-_HOME = {
-    "run_bb84": "bb84", "build_noise_model": "noise", "expected_qber": "noise",
-    "reconcile": "postprocess", "privacy_amplify": "postprocess",
-    "classify": "trust_meter", "derive_key": "chat",
-    "encrypt": "chat", "decrypt": "chat",
-}
-N_QUBITS, N_BATCHES = 512, 4  # used with a contract-style bb84 (or stubs)
-N_REAL = 4096                  # qubits per exchange for the real run_bb84(n, ...)
-
-
-def _tm_expected_qber(level):
-    """Expected QBER for a noise level, from the source the Trust Meter uses."""
-    try:
-        from src.trust_meter import _load_expected_qber
-        return float(_load_expected_qber()(level))
-    except Exception:
-        return 0.02 + 0.08 * float(level)
+N_QUBITS, N_BATCHES = 512, 4  # for contract-style run_bb84(n_qubits, n_batches, ...)
+N_REAL = 4096                 # for run_bb84(n, ...)
+SAMPLE_FRAC = 0.15
+# Interim noise scale until noise.py is wired in: noise_level 0..1 maps to a
+# channel bit-flip probability of 0..MAX_FLIP. Above ~7% post-processing leaves
+# no secret key, so 6% is the top of the usable range.
+MAX_FLIP = 0.06
 
 
-def _fb_build_noise_model(level):
-    return None  # real bb84 takes flip_prob; no Aer noise model needed yet
-
-
-def _fb_derive_key(final_key_bits):
-    data = np.packbits(np.asarray(final_key_bits, dtype=np.uint8)).tobytes()
-    return HKDF(algorithm=hashes.SHA256(), length=32, salt=None,
-                info=b"QuantaGuard Chat").derive(data)
-
-
-def _fb_encrypt(key, plaintext):
-    nonce = os.urandom(12)
-    return nonce + AESGCM(key).encrypt(nonce, plaintext.encode(), None)
-
-
-def _fb_decrypt(key, blob):
-    return AESGCM(key).decrypt(blob[:12], blob[12:], None).decode()
-
-
-_FALLBACK = {
-    "expected_qber": _tm_expected_qber,
-    "build_noise_model": _fb_build_noise_model,
-    "derive_key": _fb_derive_key,
-    "encrypt": _fb_encrypt,
-    "decrypt": _fb_decrypt,
-}
-
-
-def _get(name):
-    """Real implementation if merged, else a fallback, else a stub.
-    Returns (function, is_substitute)."""
-    try:
-        mod = importlib.import_module(f"src.{_HOME[name]}")
-        return getattr(mod, name), False
-    except (ImportError, AttributeError):
-        pass
-    if name in _FALLBACK:
-        return _FALLBACK[name], True
-    return getattr(_stubs, name), True
+def _flip_prob(level):
+    return MAX_FLIP * min(1.0, max(0.0, float(level)))
 
 
 def using_stubs():
-    """Names currently served by fallbacks/stubs (the UI shows a banner)."""
-    # derive_key/encrypt/decrypt fallbacks are real HKDF + AES-GCM, not stubs
-    return [n for n in _HOME if _get(n)[1]
-            and n not in ("derive_key", "encrypt", "decrypt")]
-
-
-@lru_cache(maxsize=1)
-def _backend():
-    try:
-        from qiskit_aer import AerSimulator
-        return AerSimulator()
-    except ImportError:
-        return None
-
-
-def _call(fn, *args, **kw):
-    """Call fn, passing only the optional kwargs its signature accepts."""
-    params = inspect.signature(fn).parameters
-    return fn(*args, **{k: v for k, v in kw.items() if k in params})
-
-
-def _seed(rng):
-    return int(rng.integers(0, 2**31 - 1))
-
-
-def _verdict(res):
-    v = res.get("verdict") if isinstance(res, dict) else res
-    v = str(getattr(v, "value", v)).lower()
-    if "compromis" in v or "eaves" in v:
-        return "compromised"
-    if "noisy" in v:
-        return "noisy"
-    if "safe" in v:
-        return "safe"
-    return "compromised"  # unknown value: fail closed
-
-
-def _recon_error():
-    try:
-        from src.postprocess import ReconciliationError
-        return ReconciliationError
-    except ImportError:
-        return RuntimeError
-
-
-def _run_bb84(noise_level, eve_on, rng):
-    fn, stub = _get("run_bb84")
-    if "n_qubits" in inspect.signature(fn).parameters:  # contract signature or stub
-        kw = {"_level": noise_level} if stub else {}
-        return fn(N_QUBITS, N_BATCHES, _backend(),
-                  noise_model=_get("build_noise_model")[0](noise_level),
-                  eve=eve_on, rng=rng, **kw)
-    # Real module: run_bb84(n, sample_frac, seed, backend, eve, flip_prob)
-    from src.eve import intercept_resend
-    return fn(N_REAL, seed=_seed(rng),
-              eve=intercept_resend if eve_on else None,
-              flip_prob=float(_get("expected_qber")[0](noise_level)))
-
-
-def run_exchange(noise_level, eve_on, rng=None):
-    rng = rng or np.random.default_rng()
-    res = _run_bb84(noise_level, eve_on, rng)
-    qber = float(res["qber"])
-
-    try:
-        a_fix, _b_fix, leaked = _call(_get("reconcile")[0], res["alice_key"],
-                                      res["bob_key"], qber_estimate=qber, seed=_seed(rng))
-    except _recon_error():
-        a_fix, leaked = None, 0
-    n_samples = int(res.get("sifted_len", 0) * 0.15) or None
-    verdict = _verdict(_call(_get("classify")[0], qber, noise_level,
-                             n_samples=n_samples, expected_qber_fn=_get("expected_qber")[0]))
-
-    key, final_len = None, 0
-    if verdict != "compromised" and a_fix is not None:
-        final = _call(_get("privacy_amplify")[0], a_fix, qber, leaked,
-                      seed=_seed(rng))
-        final_len = len(final)
-        if final_len > 0:
-            key = _get("derive_key")[0](final)
-    return {"qber": qber, "verdict": verdict,
-            "final_key_len": final_len, "key": key}
+    """Names still served by stubs (none: every module is real now)."""
+    return []
 
 
 def get_expected_qber(level):
-    return float(_get("expected_qber")[0](level))
+    return _flip_prob(level)
 
 
-def encrypt_msg(key, text):
-    return _get("encrypt")[0](key, text)
+def _call_bb84(level, eve_on, rng):
+    """Call run_bb84 with only the arguments it actually accepts."""
+    params = inspect.signature(run_bb84).parameters
+    var_kw = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+    def accepts(name):
+        return var_kw or name in params
+
+    kw = {}
+    if "n_qubits" in params:
+        kw["n_qubits"] = N_QUBITS
+        if accepts("n_batches"):
+            kw["n_batches"] = N_BATCHES
+    else:
+        kw["n"] = N_REAL
+
+    if "backend" in params and params["backend"].default is inspect.Parameter.empty:
+        from qiskit_aer import AerSimulator
+        kw["backend"] = AerSimulator()
+
+    if accepts("noise_model") and "noise_model" in params:
+        from src.noise import build_noise_model
+        kw["noise_model"] = build_noise_model(level)
+    elif accepts("flip_prob"):
+        kw["flip_prob"] = _flip_prob(level)
+
+    if accepts("sample_frac"):
+        kw["sample_frac"] = SAMPLE_FRAC
+
+    if accepts("rng"):
+        kw["rng"] = rng
+    elif accepts("seed"):
+        kw["seed"] = int(rng.integers(2**31 - 1))
+
+    if eve_on:
+        if not accepts("eve"):
+            raise RuntimeError("run_bb84 has no 'eve' argument; Eve is not wired in yet.")
+        kw["eve"] = True
+    elif "eve" in params:
+        kw["eve"] = False
+
+    return run_bb84(**kw)
 
 
-def decrypt_msg(key, blob):
-    return _get("decrypt")[0](key, blob)
+def run_exchange(noise_level, eve_on, rng=None):
+    """One full exchange. Returns qber, verdict, final_key_len, key (bytes or None)."""
+    rng = np.random.default_rng() if rng is None else rng
+    res = _call_bb84(noise_level, eve_on, rng)
+    qber = float(res["qber"])
 
-
+    info = classify(qber, noise_level)
+    out = {
+        "qber": qber,
+        "verdict": info["verdict"],
+        "expected_qber": info.get("expected_qber"),
+        "margin": info.get("margin"),
+        "final_key_len": 0,
+        "key": None,
+    }
+    if info["verdict"] == "compromised":
+        return out  # discard the key,
