@@ -4,7 +4,7 @@ import inspect
 import numpy as np
 
 from src.bb84 import run_bb84
-from src.chat import derive_key
+from src.crypto_utils import derive_key
 from src.postprocess import ReconciliationError, privacy_amplify, reconcile
 from src.trust_meter import classify
 
@@ -67,9 +67,10 @@ def _call_bb84(level, eve_on, rng):
     if eve_on:
         if not accepts("eve"):
             raise RuntimeError("run_bb84 has no 'eve' argument; Eve is not wired in yet.")
-        kw["eve"] = True
+        from src.eve import intercept_resend
+        kw["eve"] = intercept_resend
     elif "eve" in params:
-        kw["eve"] = False
+        kw["eve"] = None
 
     return run_bb84(**kw)
 
@@ -81,6 +82,9 @@ def run_exchange(noise_level, eve_on, rng=None):
     qber = float(res["qber"])
 
     info = classify(qber, noise_level)
+    if not isinstance(info, dict):
+        info = {"verdict": str(getattr(info, "value", info)).lower()}
+    info.setdefault("expected_qber", get_expected_qber(noise_level))
     out = {
         "qber": qber,
         "verdict": info["verdict"],
@@ -90,4 +94,17 @@ def run_exchange(noise_level, eve_on, rng=None):
         "key": None,
     }
     if info["verdict"] == "compromised":
-        return out  # discard the key,
+        return out  # discard the key
+
+    try:
+        a_fix, _b_fix, leaked = reconcile(res["alice_key"], res["bob_key"],
+                                          qber_estimate=qber,
+                                          seed=int(rng.integers(0, 2**31 - 1)))
+    except ReconciliationError:
+        return out
+    final = privacy_amplify(a_fix, qber, leaked,
+                            seed=int(rng.integers(0, 2**31 - 1)))
+    out["final_key_len"] = len(final)
+    if len(final) > 0:
+        out["key"] = derive_key(final)
+    return out
