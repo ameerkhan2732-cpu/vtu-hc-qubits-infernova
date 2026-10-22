@@ -4,7 +4,7 @@ import inspect
 import numpy as np
 
 from src.bb84 import run_bb84
-from src.crypto_utils import derive_key
+from src.crypto_utils import decrypt, derive_key, encrypt
 from src.postprocess import ReconciliationError, privacy_amplify, reconcile
 from src.trust_meter import classify
 
@@ -108,3 +108,10 @@ def run_exchange(noise_level, eve_on, rng=None):
     if len(final) > 0:
         out["key"] = derive_key(final)
     return out
+
+def encrypt_msg(key, text):
+    return encrypt(key, text)
+
+
+def decrypt_msg(key, blob):
+    return decrypt(key, blob)
