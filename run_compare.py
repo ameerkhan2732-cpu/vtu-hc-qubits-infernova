@@ -4,7 +4,7 @@ from src.hardware import run_bb84_hardware
 from src.hardware_eve import run_bb84_hardware_eve
 
 backend = FakeSherbrooke()
-seeds = range(1, 6)
+seeds = range(1, 21)
 honest, eve = [], []
 for s in seeds:
     h = run_bb84_hardware(300, backend, sample_frac=0.3, seed=s)
