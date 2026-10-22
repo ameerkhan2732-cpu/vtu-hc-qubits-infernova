@@ -1,4 +1,4 @@
-﻿"""BB84 chat demo: exchange a key, check the channel, then send an encrypted message.
+﻿"""BB84 chat demo: key exchange, trust check, error correction, privacy amplification, then an encrypted message.
 
 Run from the repo root:
     python -m src.chat --message "HELLO BOB"
@@ -6,12 +6,14 @@ Run from the repo root:
     python -m src.chat --message "HELLO BOB" --noise 0.05
 """
 import argparse
+import math
 import sys
 
 import numpy as np
 
 from src.bb84 import run_bb84
 from src.eve import intercept_resend
+from src.postprocess import ReconciliationError, privacy_amplify, reconcile
 from src.trust_meter import Trust, classify
 
 SAMPLE_FRAC = 0.15
@@ -22,13 +24,13 @@ def to_bits(data: bytes) -> np.ndarray:
 
 
 def to_bytes(bits: np.ndarray) -> bytes:
-    return np.packbits(bits.astype(np.uint8)).tobytes()
+    return np.packbits(np.asarray(bits, dtype=np.uint8)).tobytes()
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--message", default="HELLO BOB")
-    p.add_argument("--n", type=int, default=512, help="number of qubits Alice sends")
+    p.add_argument("--n", type=int, default=2048, help="number of qubits Alice sends")
     p.add_argument("--noise", type=float, default=0.0, help="channel bit-flip probability")
     p.add_argument("--eve", action="store_true", help="Eve intercepts every qubit")
     p.add_argument("--seed", type=int, default=None)
@@ -53,21 +55,36 @@ def main(argv=None) -> int:
         return 1
 
     a_key, b_key = result["alice_key"], result["bob_key"]
-    msg = args.message.encode("utf-8")
-    bits = to_bits(msg)
-    if len(bits) > len(a_key):
-        print(f"Message needs {len(bits)} key bits but only {len(a_key)} are available. "
+    mismatches = int((a_key != b_key).sum())
+    print(f"key after sampling: {len(a_key)} bits, {mismatches} differ between Alice and Bob")
+
+    # Error correction over the public channel
+    try:
+        a_rec, b_rec, leaked = reconcile(a_key, b_key, qber if qber > 0 else None, seed=args.seed)
+    except ReconciliationError as exc:
+        print("Error correction failed:", exc)
+        return 3
+    print(f"reconciled: keys now equal = {bool(np.array_equal(a_rec, b_rec))}, bits leaked = {leaked}")
+
+    # Privacy amplification, using a QBER with a small safety margin for the sample size
+    qber_key = min(0.5, qber + 2 * math.sqrt(max(qber * (1 - qber), 0.0) / n_samples))
+    a_final = privacy_amplify(a_rec, qber_key, leaked)
+    b_final = privacy_amplify(b_rec, qber_key, leaked)
+    print(f"secret key length: {len(a_final)} bits (QBER used: {qber_key:.3f})")
+
+    if not np.array_equal(a_final, b_final):
+        print("Final keys differ. Aborting.")
+        return 3
+
+    bits = to_bits(args.message.encode("utf-8"))
+    if len(bits) > len(a_final):
+        print(f"Message needs {len(bits)} key bits but only {len(a_final)} are available. "
               f"Use a larger --n or a shorter message.")
         return 2
 
-    cipher = bits ^ a_key[: len(bits)]
+    cipher = bits ^ a_final[: len(bits)]
     print("Alice sends (hex):", to_bytes(cipher).hex())
-
-    plain = to_bytes(cipher ^ b_key[: len(bits)])
-    mismatches = int((a_key != b_key).sum())
-    if mismatches:
-        print(f"Warning: Alice's and Bob's keys differ in {mismatches} bits (channel noise). "
-              f"Error correction is needed before this key can be used.")
+    plain = to_bytes(cipher ^ b_final[: len(bits)])
     print("Bob decrypts:", plain.decode("utf-8", errors="replace"))
     return 0
 
