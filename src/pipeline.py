@@ -72,7 +72,9 @@ def _get(name):
 
 def using_stubs():
     """Names currently served by fallbacks/stubs (the UI shows a banner)."""
-    return [n for n in _HOME if _get(n)[1]]
+    # derive_key/encrypt/decrypt fallbacks are real HKDF + AES-GCM, not stubs
+    return [n for n in _HOME if _get(n)[1]
+            and n not in ("derive_key", "encrypt", "decrypt")]
 
 
 @lru_cache(maxsize=1)
