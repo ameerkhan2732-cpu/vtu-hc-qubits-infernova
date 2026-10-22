@@ -132,3 +132,39 @@ streamlit run src/app.py
 ```
 
 To use a real IBM backend, copy `.env.example` to `.env` and add your IBM Quantum token. The simulator runs need no token.
+
+## 📤 How to Push Code
+
+Main is protected, so every change goes through a pull request.
+
+```powershell
+git checkout main
+git pull origin main
+git checkout -b feature/short-name
+git add <changed files>
+git commit -m "Describe the change"
+git push -u origin feature/short-name
+```
+
+Then open the link Git prints, create the pull request and merge it. Never commit `.env`; it holds your IBM Quantum token and is already in `.gitignore`.
+
+## ✅ Submission Checklist
+
+- [x] Code is on `main` and matches `origin/main`
+- [x] Fresh install works: `pip install -r requirements.txt` in a new venv
+- [x] All 48 tests pass: `python -m pytest -q`
+- [x] Streamlit app starts and works: `streamlit run src/app.py`
+- [x] README has team details, problem, solution, architecture, tech stack and run steps
+- [x] `.env` is not committed; only `.env.example` is tracked
+- [x] `LICENSE` file is present (MIT)
+
+## 📚 Resources
+
+- [Qiskit and IBM Quantum documentation](https://quantum.cloud.ibm.com/docs)
+- [Qiskit Aer](https://qiskit.github.io/qiskit-aer/)
+- [Streamlit documentation](https://docs.streamlit.io)
+- [BB84 protocol (Wikipedia)](https://en.wikipedia.org/wiki/BB84)
+
+## 📄 License
+
+This project is released under the MIT License. See the [LICENSE](LICENSE) file.
