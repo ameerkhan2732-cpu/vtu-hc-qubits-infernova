@@ -46,7 +46,12 @@ with st.sidebar:
     noise = st.slider("Noise level", 0.0, 1.0, 0.1, 0.05)
     eve = st.toggle("Eve is listening (intercept-resend)", value=False)
     if st.button("🔑 New key exchange", type="primary", use_container_width=True):
-        st.session_state.ex = run_exchange(noise, eve)
+        ex_new = run_exchange(noise, eve)
+        for _ in range(5):  # empty key on a borderline exchange: run another
+            if ex_new["key"] is not None or ex_new["verdict"] == "compromised":
+                break
+            ex_new = run_exchange(noise, eve)
+        st.session_state.ex = ex_new
         st.session_state.ex_noise = noise
         st.session_state.msgs = []
 
