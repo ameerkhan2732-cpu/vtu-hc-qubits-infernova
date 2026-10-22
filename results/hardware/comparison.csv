@@ -1,0 +1,5 @@
+﻿scenario,seed,backend,sifted,hardware_full_qber,sim_mean_full_qber,job_id
+honest,1,ibm_marrakesh,115,0.026,0.018,dbcp9sgc77vs7386ocm0
+eve,1,ibm_marrakesh,115,0.322,0.258,dbcprck24mrc73ck5h70
+honest,2,ibm_marrakesh,93,0.022,0.018,dbcpv6fi0auc739442eg
+eve,2,ibm_marrakesh,93,0.247,0.258,dbcpvoc24mrc73ck5t40
