@@ -82,7 +82,7 @@
 | Layer | Technology |
 |-------|------------|
 | Language | Python 3.11+ |
-| Quantum SDK | Qiskit >=1.0, Qiskit Aer, Qiskit Runtime |
+| Quantum SDK | Qiskit >=2.0, Qiskit Aer, Qiskit Runtime |
 | Simulation | AerSimulator with noise models, IBM fake backends |
 | Hardware | IBM Quantum backend via Qiskit Runtime (SamplerV2) |
 | Key processing | NumPy, error correction, privacy amplification |
@@ -95,28 +95,40 @@
 
 ```
 vtu-hc-qubits-infernova/
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── notebooks/             # Experiments and result charts
-│   └── exploration.ipynb
-├── src/
-│   ├── __init__.py
-│   ├── bb84.py            # BB84 circuits, sifting, QBER
-│   ├── noise.py           # Aer noise models and fake backends
-│   ├── eve.py             # Intercept-resend attack
-│   ├── postprocess.py     # Error correction, privacy amplification
-│   ├── trust_meter.py     # Safe / noisy / compromised classifier
-│   ├── chat.py            # Key-derived message encryption
-│   └── app.py             # Streamlit entry point
-├── results/               # Saved hardware counts and charts
-├── tests/                 # Unit tests
-│   └── test_bb84.py
-└── docs/                  # Notes, diagrams, reports
+|-- README.md
+|-- requirements.txt
+|-- .env.example           # Template for your IBM Quantum token
+|-- .gitignore
+|-- conftest.py
+|-- run_compare.py         # Simulator vs hardware comparison
+|-- run_real.py            # Run BB84 on a real IBM backend
+|-- make_qber_table.py     # QBER-vs-noise table
+|-- src/
+|   |-- __init__.py
+|   |-- app.py             # Streamlit entry point
+|   |-- bb84.py            # BB84 circuits, sifting, QBER
+|   |-- noise.py           # Aer noise models and fake backends
+|   |-- eve.py             # Intercept-resend attack
+|   |-- postprocess.py     # Error correction, privacy amplification
+|   |-- trust_meter.py     # Safe / noisy / compromised classifier
+|   |-- pipeline.py        # Full key-exchange pipeline
+|   |-- crypto_utils.py    # Key derivation, AES-GCM encrypt/decrypt
+|   |-- chat.py            # Command-line secure chat
+|   |-- hardware.py        # IBM hardware runs
+|   |-- hardware_eve.py    # Eve on real hardware
+|   +-- ibm_token.py       # Loads the IBM token from .env
+|-- results/               # Saved hardware counts and charts
++-- tests/                 # Unit tests (48 passing)
 ```
 
-## 🚀 How to Run (step 4)
+## 🚀 How to Run
 
-```
+```powershell
+python -m venv qenv
+.\qenv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m pytest -q
 streamlit run src/app.py
 ```
+
+To use a real IBM backend, copy `.env.example` to `.env` and add your IBM Quantum token. The simulator runs need no token.
