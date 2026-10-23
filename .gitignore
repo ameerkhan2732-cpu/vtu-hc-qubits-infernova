@@ -64,3 +64,5 @@ qenv/
 bb84_partial.png
 
 .env
+
+qg_data/
