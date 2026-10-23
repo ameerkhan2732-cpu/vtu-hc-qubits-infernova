@@ -168,3 +168,8 @@ Then open the link Git prints, create the pull request and merge it. Never commi
 ## 📄 License
 
 This project is released under the MIT License. See the [LICENSE](LICENSE) file.
+
+## Demo video
+
+Watch the demo: https://youtu.be/OWE-jyP49VE
+
